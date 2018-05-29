@@ -7,7 +7,6 @@ def main():
     from sklearn.metrics import confusion_matrix
 
 
-    # f = set([0,1,2])
     f = set([0, 1, 2, 3,4,5,6,7,8,9,10,11,12])
     s = []
     alldata = open('./processed.data')
@@ -18,12 +17,11 @@ def main():
     training_labels = []
     testing_labels = []
     output = open("output.data",'w')
-    matrixfile = open("matrix.data","w")
     
-
-    WEIGHT_MATRIX = [[0, 1.1, 1.2, 1.3, 1.4], [1, 0, 1.1, 1.2, 1.3], [1.0, 1.0, 0, 1.1, 1.2], [1.0, 1.0, 1.0, 0, 1.1], [1.0, 1.0, 1.0, 1.0, 0]]
     PROCEDURE_COSTS = [1.00, 1.00, 1.00, 1.00, 7.27, 5.2, 15.5, 102.9, 87.3, 87.3, 87.3, 100.9, 102.9]
 
+
+    # Generates all permutations of the 13 non-label features (2^13)
     for z in chain.from_iterable(combinations(f, r) for r in range(len(f)+1)):
         if len(z)>0:
             s.append(z)
@@ -48,9 +46,6 @@ def main():
         if startpoints[lastval] == -1:
             startpoints[lastval] = linecount
         linecount += 1
-
-    # print countDistribution(processed)
-    # print getSplit(countDistribution(processed))
 
     # Here we get the training and testing data sets by choosing the first 60% of the total data set, floored.
     # Whatever remains goes into the testing data set.
@@ -87,16 +82,13 @@ def main():
     testing = scaler.transform(testing)
 
 
+    svmClassifier = svm.SVC()
 
-    print training[0]
-    print len(training[0])
-
-
-    svmClassifier = svm.SVC(gamma=0.01)
-
-    print countDistribution(processed)
+    # Here we prepare training and testing with specific features only
+    # If features 1, 2, and 3 are chosen, for example, then only those columns
+    # will get used for training and testing
     iter_count = 0
-    highest = [0,0]
+    highest = [0,0,1000]
     for permutation in s:
         cost = 0
         temp_training = [[] for i in range(len(training))]
@@ -108,21 +100,25 @@ def main():
             for i in range(len(testing)):
                 temp_testing[i].append(testing[i][feat])
 
-
         
-        iter_count += 1
         svmClassifier.fit(temp_training,training_labels)
         results = svmClassifier.predict(temp_testing)
         score = f1_score(testing_labels, results, average='micro')
-
         output.write("%d,%s,%s,%d,"%(iter_count, permutation, score, cost))
+
+        iter_count += 1
+        
         cm = confusion_matrix(testing_labels,results)
-        output.write(str(cm[0])+ str(cm[1])+"\n")
-        # matrixfile.write(str(cm[0])+","+str(cm[1])+"\n")
+        output.write("[[" + str(cm[0][0]) + "," + str(cm[0][1]) + "],[" + str(cm[1][0]) + "," + str(cm[1][1]) + "]]\n"  )
         if iter_count % 1000 == 0:
             print iter_count, "/", len(s)
-        if score > highest[0]:
-            highest = [score, permutation, cost]
+        if score >= highest[0]:
+            if score > highest[0]:
+                highest = [score, permutation, cost]
+            elif cost < highest[2]:
+                highest = [score, permutation, cost]
+        
+
     print highest
     output.close()
         
@@ -150,41 +146,6 @@ def getSplit(distribution):
         forty = vals - sixty
         ranges.append([sixty,forty])
     return ranges 
-
-# to be deprecated
-def getConfusionMatrix(results, actual):
-    matrix = [[0 for i in range(5)] for i in range(5)]
-    totals = [0,0,0,0,0]
-    for i in actual:
-        totals[int(i)] += 1
-
-    for i in range(len(results)):
-        res = int(results[i])
-        ac = int(actual[i])
-        matrix[res][ac] += 1
-        
-    
-
-    for i in range(5):
-        for j in range(5):
-            matrix[i][j] = round(float(matrix[i][j])/float(totals[j]),2)   
-    return matrix
-
-
-
-# to be deprecated
-def getCustomPMScore(matrix, weights):
-    # print "henlo"
-    # print matrix
-    # print weights
-
-    score = 0.0
-    for i in range(5):
-        for j in range(5):
-            matrix[i][j] *= weights[i][j]
-            score += matrix[i][j]
-    score = score / 20.0
-    return 1 - score
 
 
 if __name__ == "__main__":
